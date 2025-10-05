@@ -13,10 +13,12 @@ KNOWN_ERRORS = {
 }
 
 def analyze_log_with_gemini(log_file, output_file=None):
+    """Analyze Jenkins build log using Gemini API and detect known issues."""
     # Read log safely (replace invalid characters)
     with open(log_file, "r", encoding="utf-8", errors="replace") as f:
         log_content = f.read()
 
+    # Initialize Gemini client
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
     prompt = f"""
@@ -43,8 +45,8 @@ def analyze_log_with_gemini(log_file, output_file=None):
         if match:
             alerts.append(message.format(*match.groups()))
 
-    # Print console output
-    print("\033[93m\n=== 🤖 AI Build Log Analysis ===\033[0m\n")
+    # Print console output (Windows-safe)
+    print("\033[93m\n=== AI Build Log Analysis ===\033[0m\n")
     if alerts:
         print("\033[91m⚠️ Known Issues Detected:\033[0m")
         for alert in alerts:
