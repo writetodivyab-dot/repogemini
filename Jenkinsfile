@@ -31,6 +31,7 @@ pipeline {
                     sh "mkdir -p build_logs"
                     try {
                         echo "\u001B[36mStarting build...\u001B[0m"
+                        // This is the corrected sh block
                         sh """
                             # Run the python script and redirect all output to the log file.
                             python3 scripts/app.py > 'build_logs/build_${BUILD_NUMBER}.txt' 2>&1
