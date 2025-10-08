@@ -2,10 +2,10 @@ pipeline {
     agent any
 
     environment {
+        VENV_PATH = "/opt/venv"
         PYTHON_SCRIPT = "scripts/analyze_log.py"
         OUTPUT_FILE = "${env.WORKSPACE}/ai_analysis_output.txt"
         GEMINI_API_KEY = credentials('GEMINI_API_KEY')
-        VENV_PATH = "/var/jenkins_home/venv"
     }
 
     stages {
@@ -14,7 +14,6 @@ pipeline {
                 echo "\u001B[34m=== Starting Build Stage ===\u001B[0m"
                 sh """
                     source ${VENV_PATH}/bin/activate
-                    echo "Running app.py..."
                     python3 scripts/app.py
                 """
             }
@@ -26,22 +25,20 @@ pipeline {
             echo "\u001B[31m=== Build Failed: Running AI Log Analysis ===\u001B[0m"
 
             script {
-                // Fetch Jenkins console log directly
+                // Fetch console log directly
                 def logText = currentBuild.rawBuild.getLog(999999).join("\n")
 
-                // Write log to temporary file for Python script
+                // Write to temporary file for analyze_log.py
                 def logFilePath = "${env.WORKSPACE}/jenkins_console_${env.BUILD_NUMBER}.txt"
                 writeFile file: logFilePath, text: logText
 
-                // Run Python AI analysis
+                // Run Gemini AI analysis
                 sh """
                     source ${VENV_PATH}/bin/activate
-                    python3 ${PYTHON_SCRIPT} \
-                        "${logFilePath}" \
-                        "${OUTPUT_FILE}"
+                    python3 ${PYTHON_SCRIPT} "${logFilePath}" "${OUTPUT_FILE}"
                 """
 
-                // Archive AI analysis and log file
+                // Archive AI analysis and console log
                 archiveArtifacts artifacts: 'ai_analysis_output.txt, jenkins_console_*.txt', fingerprint: true
             }
         }
