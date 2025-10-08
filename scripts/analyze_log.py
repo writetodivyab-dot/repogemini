@@ -1,77 +1,52 @@
-import os
 import sys
-import re
-from google import genai
-from google.genai import types
+import os
+import google.generativeai as genai
 
-# Known error patterns
-KNOWN_ERRORS = {
-    r"ModuleNotFoundError: No module named '(\w+)'": "Missing Python module: {}",
-    r"ImportError: cannot import name '(\w+)'": "Import error: {}",
-    r"SyntaxError: (.+)": "Syntax error: {}",
-    r"Exception: (.+)": "General exception: {}"
-}
+def analyze_log_with_gemini(log_file_path, output_file_path):
+    # Get API key from environment
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY not set in environment variables.")
 
-def analyze_log_with_gemini(log_file, output_file=None):
-    """Analyze Jenkins build log using Gemini API and detect known issues."""
-    # Read log safely (replace invalid characters)
-    with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+    genai.configure(api_key=api_key)
+
+    # Read the Jenkins build log
+    with open(log_file_path, "r", encoding="utf-8", errors="ignore") as f:
         log_content = f.read()
 
-    # Initialize Gemini client
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
+    # Prepare prompt for Gemini
     prompt = f"""
-    Analyze the following Jenkins build log. Identify the root cause of failure,
-    summarize clearly, and suggest specific fixes:
+    You are an AI assistant. Analyze the following Jenkins build log and summarize:
+    - Errors encountered
+    - Possible causes
+    - Suggested fixes
 
+    Build log:
     {log_content}
     """
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            tools=[types.Tool(code_execution=types.ToolCodeExecution)]
-        ),
+    # Call Gemini API
+    response = genai.chat.create(
+        model="gemini-1.5",
+        messages=[{"role": "user", "content": prompt}]
     )
 
-    analysis = response.text.strip()
+    ai_analysis = response.last.user_message.content
 
-    # Detect known issues
-    alerts = []
-    for pattern, message in KNOWN_ERRORS.items():
-        match = re.search(pattern, log_content)
-        if match:
-            alerts.append(message.format(*match.groups()))
+    # Write AI analysis to output file
+    with open(output_file_path, "w", encoding="utf-8") as f:
+        f.write(ai_analysis)
 
-    # Print console output (Windows-safe)
-    print("\033[93m\n=== AI Build Log Analysis ===\033[0m\n")
-    if alerts:
-        print("\033[91m⚠️ Known Issues Detected:\033[0m")
-        for alert in alerts:
-            print(f"\033[91m- {alert}\033[0m")
-        print("\033[91m------------------------------\033[0m")
-    print(f"\033[94m{analysis}\033[0m")
-    print("\033[93m\n===============================\033[0m\n")
+    print("\033[93m\n=== 🤖 AI Build Log Analysis ===\033[0m\n")
+    print(ai_analysis)
 
-    # Save to file
-    if output_file:
-        os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        with open(output_file, "w", encoding="utf-8") as f:
-            if alerts:
-                f.write("Known Issues:\n")
-                for alert in alerts:
-                    f.write(f"- {alert}\n")
-                f.write("\n")
-            f.write(analysis)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python analyze_log.py <log_file> [output_file]")
+    if len(sys.argv) != 3:
+        print("Usage: python analyze_log.py <log_file> <output_file>")
         sys.exit(1)
 
     log_file = sys.argv[1]
-    output_file = sys.argv[2] if len(sys.argv) > 2 else None
+    output_file = sys.argv[2]
 
     analyze_log_with_gemini(log_file, output_file)
