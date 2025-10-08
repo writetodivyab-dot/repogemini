@@ -5,7 +5,7 @@ pipeline {
         GEMINI_API_KEY = credentials('gemini-api-key')
         PYTHON_VENV = "/opt/venv/bin/python3"
         BUILD_LOG_DIR = "${WORKSPACE}/build_logs"
-        REPO_FALLBACK = "writetodivyab-dot/repogemini"  // 🔹 change this
+        REPO_FALLBACK = "writetodivyab-dot/repogemini"  // 🔹 update this
     }
 
     options {
@@ -44,8 +44,9 @@ pipeline {
 
     post {
         always {
-            node {
-                script {
+            // ✅ This ensures workspace context for fileExists, sh, etc.
+            script {
+                node('any') {
                     echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
 
                     def logFile = "${env.BUILD_LOG_DIR}/build_${env.BUILD_NUMBER}.txt"
@@ -69,8 +70,9 @@ pipeline {
                     } else {
                         echo "\u001B[33mNo build log found at ${logFile}\u001B[0m"
                     }
+
+                    archiveArtifacts artifacts: 'build_logs/*.txt', onlyIfSuccessful: false
                 }
-                archiveArtifacts artifacts: 'build_logs/*.txt', onlyIfSuccessful: false
             }
         }
     }
