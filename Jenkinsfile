@@ -1,7 +1,7 @@
 pipeline {
     agent any
 
-    // ✅ Add manual PR number parameter
+    // Manual PR parameter
     parameters {
         string(name: 'PR_NUMBER', defaultValue: '', description: 'PR number to post AI analysis to (leave empty for manual build only)')
     }
@@ -49,33 +49,31 @@ pipeline {
 
     post {
         always {
-            steps {
-                script {
-                    echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
+            script {
+                echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
 
-                    def logFile = "${env.BUILD_LOG_DIR}/build_${env.BUILD_NUMBER}.txt"
-                    // ✅ Use manual PR_NUMBER parameter if provided
-                    def prNumber = params.PR_NUMBER ?: null
-                    def repoUrl = env.GIT_URL ?: "https://github.com/${env.REPO_FALLBACK}.git"
+                def logFile = "${env.BUILD_LOG_DIR}/build_${env.BUILD_NUMBER}.txt"
+                def prNumber = params.PR_NUMBER ?: null
+                def repoUrl = env.GIT_URL ?: "https://github.com/${env.REPO_FALLBACK}.git"
 
-                    echo "Repository URL: ${repoUrl}"
+                echo "Repository URL: ${repoUrl}"
 
-                    if (fileExists(logFile)) {
-                        if (prNumber) {
-                            echo "Posting AI analysis to PR #${prNumber}..."
-                            sh """
-                                ${env.PYTHON_VENV} scripts/analyze_log.py ${logFile} --pr ${prNumber} --repo ${repoUrl}
-                            """
-                        } else {
-                            echo "Manual build (no PR), printing AI analysis to console..."
-                            sh """
-                                ${env.PYTHON_VENV} scripts/analyze_log.py ${logFile}
-                            """
-                        }
+                if (fileExists(logFile)) {
+                    if (prNumber) {
+                        echo "Posting AI analysis to PR #${prNumber}..."
+                        sh """
+                            ${env.PYTHON_VENV} scripts/analyze_log.py ${logFile} --pr ${prNumber} --repo ${repoUrl}
+                        """
                     } else {
-                        echo "\u001B[33mNo build log found at ${logFile}\u001B[0m"
+                        echo "Manual build (no PR), printing AI analysis to console..."
+                        sh """
+                            ${env.PYTHON_VENV} scripts/analyze_log.py ${logFile}
+                        """
                     }
+                } else {
+                    echo "\u001B[33mNo build log found at ${logFile}\u001B[0m"
                 }
+
                 archiveArtifacts artifacts: 'build_logs/*.txt', onlyIfSuccessful: false
             }
         }
