@@ -31,7 +31,7 @@ pipeline {
                     sh "mkdir -p build_logs"
                     try {
                         echo "\u001B[36mStarting build...\u001B[0m"
-                        // Use the generic python3 command
+                        // Use the generic python3 command pls work
                         sh """
                             set -e
                             python3 scripts/app.py > 'build_logs/build_${BUILD_NUMBER}.txt' 2>&1
