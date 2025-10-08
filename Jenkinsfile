@@ -1,58 +1,76 @@
 pipeline {
-  agent any
+    agent any
 
-  parameters {
-    string(name: 'PR_NUMBER', defaultValue: '', description: 'Optional PR number for manual builds')
-  }
+    environment {
+        GEMINI_API_KEY = credentials('gemini-api-key')
+        PYTHON_VENV = "/opt/venv/bin/python3"
+        BUILD_LOG_DIR = "${WORKSPACE}/build_logs"
+        REPO_FALLBACK = "writetodivyab-dot/repogemini" // change this
+    }
 
-  environment {
-    VENV_PYTHON = "/opt/venv/bin/python3"
-    GEMINI_API_KEY = credentials('GEMINI_API_KEY')
-    GITHUB_TOKEN = credentials('GITHUB_TOKEN')
-    REPO_FALLBACK = 'writetodivyab-dot/repogemini'   // change this to your repo
-  }
+    options {
+        ansiColor('xterm')
+        disableConcurrentBuilds()
+        timestamps()
+    }
 
-  stages {
-    stage('Build') {
-      steps {
-        script {
-          def logPath = "${env.WORKSPACE}/build_logs/console_${env.BUILD_NUMBER}.txt"
-          sh """
-            #!/bin/bash
-            set -e
-            mkdir -p "${env.WORKSPACE}/build_logs"
-            echo "Simulating build, logs at ${logPath}"
-            ${VENV_PYTHON} scripts/app.py 2>&1 | tee "${logPath}"
-          """
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
         }
-      }
-    }
-  }
 
-  post {
-    failure {
-      script {
-        def logFile = "${env.WORKSPACE}/build_logs/console_${env.BUILD_NUMBER}.txt"
-        def prNumber = env.CHANGE_ID ?: params.PR_NUMBER
-        def repoName = env.REPO_FALLBACK
+        stage('Build') {
+            steps {
+                script {
+                    try {
+                        // Ensure log directory exists
+                        sh "mkdir -p ${BUILD_LOG_DIR}"
 
-        withEnv([
-          "PR_NUMBER=${prNumber}",
-          "REPO_NAME=${repoName}"
-        ]) {
-          sh """
-            #!/bin/bash
-            set -e
-            echo "Running AI analysis for failed build..."
-            ${VENV_PYTHON} scripts/analyze_log.py "${logFile}"
-          """
+                        echo "\u001B[36mStarting build...\u001B[0m"
+
+                        // Run your build command - PowerShell replaced by Python for Linux
+                        sh """
+                            set -e
+                            ${PYTHON_VENV} scripts/app.py > ${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt 2>&1
+                        """
+
+                        echo "\u001B[32mBuild succeeded!\u001B[0m"
+                    } catch (err) {
+                        echo "\u001B[31mBuild failed, marking for analysis...\u001B[0m"
+                        currentBuild.result = 'FAILURE'
+                        throw err
+                    }
+                }
+            }
         }
-      }
-      archiveArtifacts artifacts: 'build_logs/*.txt', fingerprint: true, allowEmptyArchive: true
     }
 
-    always {
-      archiveArtifacts artifacts: 'build_logs/*.txt', fingerprint: true, allowEmptyArchive: true
+    post {
+        always {
+            script {
+                echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
+                def logFile = "${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt"
+                def prNumber = env.CHANGE_ID ?: null
+
+                if (fileExists(logFile)) {
+                    if (prNumber) {
+                        echo "Detected PR #${prNumber}, posting analysis comment..."
+                        sh """
+                            ${PYTHON_VENV} scripts/analyze_log.py ${logFile} --pr ${prNumber}
+                        """
+                    } else {
+                        echo "Manual build detected, writing AI analysis to console..."
+                        sh """
+                            ${PYTHON_VENV} scripts/analyze_log.py ${logFile}
+                        """
+                    }
+                } else {
+                    echo "\u001B[33mNo build log found at ${logFile}\u001B[0m"
+                }
+            }
+            archiveArtifacts artifacts: 'build_logs/*.txt', onlyIfSuccessful: false
+        }
     }
-  }
 }
