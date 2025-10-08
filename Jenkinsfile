@@ -8,7 +8,7 @@ pipeline {
     environment {
 		GEMINI_API_KEY = credentials('GEMINI_API_KEY')
         GITHUB_TOKEN   = credentials('GITHUB_TOKEN')
-        REPO_FALLBACK  = "writetodivyab-dot/repogemini" // Remember to update this
+        REPO_FALLBACK  = "writetodivyab-dot/repogemini"
     }
 
     options {
@@ -24,31 +24,29 @@ pipeline {
             }
         }
 
-		stage('Build') {
+        stage('Build') {
             steps {
                 script {
-                    // --- TEMPORARY DEBUGGING SCRIPT ---
-                    // This will print the exact Python error to the console.
-                    sh """
-                        # The 'set +e' allows the script to continue so we can see all output.
-                        set +e
+                    sh 'python3 -m pip install -r requirements.txt'
+                    sh "mkdir -p build_logs"
+                    try {
+                        echo "\u001B[36mStarting build...\u001B[0m"
+                        sh """
+                            # Run the python script and redirect all output to the log file.
+                            python3 scripts/app.py > 'build_logs/build_${BUILD_NUMBER}.txt' 2>&1
 
-                        echo "--- Attempting to install dependencies ---"
-                        python3 -m pip install -r requirements.txt
-                        # Check the exit code of the pip install command.
-                        if [ \$? -ne 0 ]; then
-                            echo "ERROR: 'pip install' failed. Check your requirements.txt file or Python setup."
-                            exit 1
-                        fi
-                        echo "--- Dependencies installed successfully ---"
+                            # Save the exit code of the python script. 0 is success, anything else is failure.
+                            STATUS=\$?
 
-                        echo "--- Attempting to run app.py (output will appear below) ---"
-                        python3 scripts/app.py
-                        if [ \$? -ne 0 ]; then
-                            echo "ERROR: Your app.py script failed to execute. The error message should be visible above this line."
-                            exit 1
-                        fi
-                    """
+                            # Exit with the same status code. If it's non-zero, the 'catch' block will run.
+                            exit \$STATUS
+                        """
+                        echo "\u001B[32mBuild succeeded!\u001B[0m"
+                    } catch (err) {
+                        echo "\u001B[31mBuild failed, marking for analysis...\u001B[0m"
+                        currentBuild.result = 'FAILURE'
+                        throw err
+                    }
                 }
             }
         }
