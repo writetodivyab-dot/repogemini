@@ -5,17 +5,19 @@ pipeline {
         LOG_DIR = "${env.WORKSPACE}/build_logs"
         PYTHON_SCRIPT = "scripts/analyze_log.py"
         OUTPUT_FILE = "${env.LOG_DIR}/ai_analysis_output.txt"
-        GEMINI_API_KEY = credentials('GEMINI_API_KEY')   // Jenkins credential ID
+        GEMINI_API_KEY = credentials('GEMINI_API_KEY')
     }
 
     stages {
         stage('Build') {
             steps {
                 echo "\u001B[34m=== Starting Build Stage ===\u001B[0m"
-                // Simulate a build task — replace this with your real build steps
-                bat 'echo Building project...'
-                bat 'echo Running tests...'
-                bat 'echo All steps executed successfully!'
+                // Use Linux shell commands instead of bat
+                sh '''
+                    echo "Building project..."
+                    echo "Running tests..."
+                    echo "All steps executed successfully!"
+                '''
             }
         }
 
@@ -26,19 +28,17 @@ pipeline {
             steps {
                 script {
                     echo "\u001B[33m=== Extracting Jenkins Build Log ===\u001B[0m"
-                    
-                    // Ensure build_logs directory exists
-                    bat "if not exist \"${LOG_DIR}\" mkdir \"${LOG_DIR}\""
 
-                    // Save Jenkins' own console log into a text file
+                    sh "mkdir -p '${LOG_DIR}'"
+
                     def logFilePath = "${LOG_DIR}/jenkins_console_${env.BUILD_NUMBER}.txt"
                     def logText = currentBuild.rawBuild.getLog(999999).join("\n")
                     writeFile file: logFilePath, text: logText
-                    
+
                     echo "\u001B[36m=== Running AI Log Analysis (Gemini) ===\u001B[0m"
-                    bat """
-                        python "${PYTHON_SCRIPT}" ^
-                            "${logFilePath}" ^
+                    sh """
+                        python3 "${PYTHON_SCRIPT}" \
+                            "${logFilePath}" \
                             "${OUTPUT_FILE}"
                     """
                 }
