@@ -6,9 +6,9 @@ pipeline {
     }
 
     environment {
-        GEMINI_API_KEY = credentials('gemini-api-key')
-        GITHUB_TOKEN   = credentials('github-token')
-        REPO_FALLBACK  = "your-github-user/your-repo-name" // Remember to update this
+        GEMINI_API_KEY = credentials('GEMINI_API_KEY')
+        GITHUB_TOKEN   = credentials('GITHUB_TOKEN')
+        REPO_FALLBACK  = "writetodivyab-dot/repogemini"
     }
 
     options {
