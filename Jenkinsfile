@@ -4,62 +4,50 @@ pipeline {
     environment {
         LOG_DIR = "${env.WORKSPACE}/build_logs"
         PYTHON_SCRIPT = "scripts/analyze_log.py"
-        OUTPUT_FILE = "${env.LOG_DIR}/ai_analysis_output.txt"
+        OUTPUT_FILE = "${LOG_DIR}/ai_analysis_output.txt"
         GEMINI_API_KEY = credentials('GEMINI_API_KEY')
+        VENV_PATH = "/var/jenkins_home/venv"
     }
 
     stages {
         stage('Build') {
             steps {
                 echo "\u001B[34m=== Starting Build Stage ===\u001B[0m"
-                // Use Linux shell commands instead of bat
-                sh '''
-                    echo "Building project..."
-					python3 scripts/app.py
-                    echo "Running tests..."
-                    echo "All steps executed successfully!"
-                '''
-            }
-        }
-
-        stage('Analyze Failure') {
-            when {
-                expression { currentBuild.resultIsWorseOrEqualTo('FAILURE') }
-            }
-            steps {
-                script {
-                    echo "\u001B[33m=== Extracting Jenkins Build Log ===\u001B[0m"
-
-                    sh "mkdir -p '${LOG_DIR}'"
-
-                    def logFilePath = "${LOG_DIR}/jenkins_console_${env.BUILD_NUMBER}.txt"
-                    def logText = currentBuild.rawBuild.getLog(999999).join("\n")
-                    writeFile file: logFilePath, text: logText
-
-                    echo "\u001B[36m=== Running AI Log Analysis (Gemini) ===\u001B[0m"
-                    sh """
-                        python3 "${PYTHON_SCRIPT}" \
-                            "${logFilePath}" \
-                            "${OUTPUT_FILE}"
-                    """
-                }
-            }
-        }
-
-        stage('Archive Logs') {
-            steps {
-                echo "\u001B[35m=== Archiving Logs and Analysis Output ===\u001B[0m"
-                archiveArtifacts artifacts: 'build_logs/*.txt', fingerprint: true
+                sh """
+                    mkdir -p '${LOG_DIR}'
+                    source ${VENV_PATH}/bin/activate
+                    echo "Running app.py..."
+                    python3 scripts/app.py
+                """
             }
         }
     }
 
     post {
-        success {
-            echo "\u001B[32m=== Build succeeded! ===\u001B[0m"
-        }
         failure {
-            echo "\u001B[31m=== Build failed! Running analysis anyway... ===\u001B[0m"
+            echo "\u001B[31m=== Build Failed: Running AI Log Analysis ===\u001B[0m"
+
+            script {
+                // Save Jenkins console log to a file
+                def logFilePath = "${LOG_DIR}/jenkins_console_${env.BUILD_NUMBER}.txt"
+                def logText = currentBuild.rawBuild.getLog(999999).join("\n")
+                writeFile file: logFilePath, text: logText
+
+                // Run Python AI analysis
+                sh """
+                    source ${VENV_PATH}/bin/activate
+                    python3 ${PYTHON_SCRIPT} \
+                        "${logFilePath}" \
+                        "${OUTPUT_FILE}"
+                """
+            }
+
+            // Archive logs
+            archiveArtifacts artifacts: 'build_logs/*.txt', fingerprint: true, allowEmptyArchive: true
+        }
+
+        always {
+            echo "\u001B[32m=== Pipeline Finished ===\u001B[0m"
         }
     }
 }
