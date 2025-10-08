@@ -1,5 +1,8 @@
 pipeline {
-    agent any
+    // Defines a Docker container with Python 3.9 as the execution environment.
+    agent {
+        docker { image 'python:3.9-slim' }
+    }
 
     parameters {
         string(name: 'PR_NUMBER', defaultValue: '', description: 'PR number to post AI analysis to (leave empty for manual build only)')
@@ -8,9 +11,8 @@ pipeline {
     environment {
         GEMINI_API_KEY = credentials('gemini-api-key')
         GITHUB_TOKEN   = credentials('github-token')
-        PYTHON_BIN     = "/opt/venv/bin/python3"  // Adjust if your Python path is different
         BUILD_LOG_DIR  = "${env.WORKSPACE}/build_logs"
-        REPO_FALLBACK  = "writetodivyab-dot/repogemini"
+        REPO_FALLBACK  = "writetodivyab-dot/repogemini" // Be sure to change this
     }
 
     options {
@@ -32,9 +34,10 @@ pipeline {
                     sh "mkdir -p '${BUILD_LOG_DIR}'"
                     try {
                         echo "\u001B[36mStarting build...\u001B[0m"
+                        // Call python3 directly, as it's in the container's PATH
                         sh """
                             set -e
-                            ${PYTHON_BIN} scripts/app.py > '${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt' 2>&1
+                            python3 scripts/app.py > '${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt' 2>&1
                         """
                         echo "\u001B[32mBuild succeeded!\u001B[0m"
                     } catch (err) {
@@ -50,38 +53,39 @@ pipeline {
     post {
         always {
             script {
-                echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
+                // Re-use the agent context from the main stages
+                node {
+                    echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
 
-                def logFile = "${env.BUILD_LOG_DIR}/build_${env.BUILD_NUMBER}.txt"
-                def prNumber = params.PR_NUMBER ?: null
-                def repoUrl = env.GIT_URL ?: "https://github.com/${env.REPO_FALLBACK}.git"
+                    def logFile = "${env.BUILD_LOG_DIR}/build_${env.BUILD_NUMBER}.txt"
+                    def prNumber = params.PR_NUMBER ?: null
+                    def repoUrl = env.GIT_URL ?: "https://github.com/${env.REPO_FALLBACK}.git"
 
-                echo "Repository URL: ${repoUrl}"
+                    echo "Repository URL: ${repoUrl}"
 
-                // Check if log file exists
-                def logExists = sh(script: "[ -f '${logFile}' ] && echo 'yes' || echo 'no'", returnStdout: true).trim()
+                    def logExists = sh(script: "[ -f '${logFile}' ] && echo 'yes' || echo 'no'", returnStdout: true).trim()
 
-                if (logExists == 'yes') {
-                    if (prNumber) {
-                        echo "Posting AI analysis to PR #${prNumber}..."
-                        sh """
-                            GEMINI_API_KEY='${GEMINI_API_KEY}' \
-                            GITHUB_TOKEN='${GITHUB_TOKEN}' \
-                            ${PYTHON_BIN} scripts/analyze_log.py '${logFile}' --pr ${prNumber} --repo ${repoUrl}
-                        """
+                    if (logExists == 'yes') {
+                        if (prNumber) {
+                            echo "Posting AI analysis to PR #${prNumber}..."
+                            sh """
+                                GEMINI_API_KEY='${GEMINI_API_KEY}' \
+                                GITHUB_TOKEN='${GITHUB_TOKEN}' \
+                                python3 scripts/analyze_log.py '${logFile}' --pr ${prNumber} --repo ${repoUrl}
+                            """
+                        } else {
+                            echo "Manual build (no PR), printing AI analysis to console..."
+                            sh """
+                                GEMINI_API_KEY='${GEMINI_API_KEY}' \
+                                python3 scripts/analyze_log.py '${logFile}'
+                            """
+                        }
                     } else {
-                        echo "Manual build (no PR), printing AI analysis to console..."
-                        sh """
-                            GEMINI_API_KEY='${GEMINI_API_KEY}' \
-                            ${PYTHON_BIN} scripts/analyze_log.py '${logFile}'
-                        """
+                        echo "\u001B[33mNo build log found at ${logFile}\u001B[0m"
                     }
-                } else {
-                    echo "\u001B[33mNo build log found at ${logFile}\u001B[0m"
-                }
 
-                // Archive build logs
-                archiveArtifacts artifacts: 'build_logs/*.txt', onlyIfSuccessful: false
+                    archiveArtifacts artifacts: 'build_logs/*.txt', onlyIfSuccessful: false
+                }
             }
         }
     }
