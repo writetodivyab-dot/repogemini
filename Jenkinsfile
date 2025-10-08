@@ -1,8 +1,3 @@
-Understood. Here is the complete `Jenkinsfile` with the latest corrections.
-
-This version corrects the variable access inside the `post` block by using the `env.` prefix, which should resolve the `MissingPropertyException`.
-
-```groovy
 pipeline {
     agent any
 
@@ -91,4 +86,3 @@ pipeline {
         }
     }
 }
-```
