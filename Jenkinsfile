@@ -5,7 +5,7 @@ pipeline {
         GEMINI_API_KEY = credentials('gemini-api-key')
         PYTHON_VENV = "/opt/venv/bin/python3"
         BUILD_LOG_DIR = "${WORKSPACE}/build_logs"
-        REPO_FALLBACK = "writetodivyab-dot/repogemini"  // 🔹 CHANGE THIS
+        REPO_FALLBACK = "writetodivyab-dot/repogemini"  // 🔹 change this
     }
 
     options {
@@ -44,32 +44,34 @@ pipeline {
 
     post {
         always {
-            script {
-                echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
+            node {
+                script {
+                    echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
 
-                def logFile = "${env.BUILD_LOG_DIR}/build_${env.BUILD_NUMBER}.txt"
-                def prNumber = env.CHANGE_ID ?: null
-                def repoUrl = env.GIT_URL ?: "https://github.com/${env.REPO_FALLBACK}.git"
+                    def logFile = "${env.BUILD_LOG_DIR}/build_${env.BUILD_NUMBER}.txt"
+                    def prNumber = env.CHANGE_ID ?: null
+                    def repoUrl = env.GIT_URL ?: "https://github.com/${env.REPO_FALLBACK}.git"
 
-                echo "Repository URL: ${repoUrl}"
+                    echo "Repository URL: ${repoUrl}"
 
-                if (fileExists(logFile)) {
-                    if (prNumber) {
-                        echo "Detected PR #${prNumber}, posting AI analysis comment..."
-                        sh """
-                            ${env.PYTHON_VENV} scripts/analyze_log.py ${logFile} --pr ${prNumber} --repo ${repoUrl}
-                        """
+                    if (fileExists(logFile)) {
+                        if (prNumber) {
+                            echo "Detected PR #${prNumber}, posting AI analysis comment..."
+                            sh """
+                                ${env.PYTHON_VENV} scripts/analyze_log.py ${logFile} --pr ${prNumber} --repo ${repoUrl}
+                            """
+                        } else {
+                            echo "Manual build detected, writing AI analysis to console..."
+                            sh """
+                                ${env.PYTHON_VENV} scripts/analyze_log.py ${logFile}
+                            """
+                        }
                     } else {
-                        echo "Manual build detected, writing AI analysis to console..."
-                        sh """
-                            ${env.PYTHON_VENV} scripts/analyze_log.py ${logFile}
-                        """
+                        echo "\u001B[33mNo build log found at ${logFile}\u001B[0m"
                     }
-                } else {
-                    echo "\u001B[33mNo build log found at ${logFile}\u001B[0m"
                 }
+                archiveArtifacts artifacts: 'build_logs/*.txt', onlyIfSuccessful: false
             }
-            archiveArtifacts artifacts: 'build_logs/*.txt', onlyIfSuccessful: false
         }
     }
 }
