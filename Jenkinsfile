@@ -1,8 +1,6 @@
 pipeline {
-    // Defines a Docker container with Python 3.9 as the execution environment.
-    agent {
-        docker { image 'python:3.9-slim' }
-    }
+    // Explicitly request the 'master' node to avoid the 'any' label issue.
+    agent { label 'Built-In Node' }
 
     parameters {
         string(name: 'PR_NUMBER', defaultValue: '', description: 'PR number to post AI analysis to (leave empty for manual build only)')
@@ -11,8 +9,9 @@ pipeline {
     environment {
         GEMINI_API_KEY = credentials('gemini-api-key')
         GITHUB_TOKEN   = credentials('github-token')
+        PYTHON_BIN     = "/opt/venv/bin/python3"  // Using your specific Python path
         BUILD_LOG_DIR  = "${env.WORKSPACE}/build_logs"
-        REPO_FALLBACK  = "writetodivyab-dot/repogemini" // Be sure to change this
+        REPO_FALLBACK  = "writetodivyab-dot/repogemini"
     }
 
     options {
@@ -34,10 +33,9 @@ pipeline {
                     sh "mkdir -p '${BUILD_LOG_DIR}'"
                     try {
                         echo "\u001B[36mStarting build...\u001B[0m"
-                        // Call python3 directly, as it's in the container's PATH
                         sh """
                             set -e
-                            python3 scripts/app.py > '${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt' 2>&1
+                            ${PYTHON_BIN} scripts/app.py > '${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt' 2>&1
                         """
                         echo "\u001B[32mBuild succeeded!\u001B[0m"
                     } catch (err) {
@@ -53,8 +51,8 @@ pipeline {
     post {
         always {
             script {
-                // Re-use the agent context from the main stages
-                node {
+                // Also use the 'master' node to ensure context is available.
+                node('Built-In Node') {
                     echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
 
                     def logFile = "${env.BUILD_LOG_DIR}/build_${env.BUILD_NUMBER}.txt"
@@ -71,13 +69,13 @@ pipeline {
                             sh """
                                 GEMINI_API_KEY='${GEMINI_API_KEY}' \
                                 GITHUB_TOKEN='${GITHUB_TOKEN}' \
-                                python3 scripts/analyze_log.py '${logFile}' --pr ${prNumber} --repo ${repoUrl}
+                                ${PYTHON_BIN} scripts/analyze_log.py '${logFile}' --pr ${prNumber} --repo ${repoUrl}
                             """
                         } else {
                             echo "Manual build (no PR), printing AI analysis to console..."
                             sh """
                                 GEMINI_API_KEY='${GEMINI_API_KEY}' \
-                                python3 scripts/analyze_log.py '${logFile}'
+                                ${PYTHON_BIN} scripts/analyze_log.py '${logFile}'
                             """
                         }
                     } else {
