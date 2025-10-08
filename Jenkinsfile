@@ -20,6 +20,8 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
+                // Add this line to wipe the workspace and force a fresh clone
+                cleanWs()
                 checkout scm
             }
         }
