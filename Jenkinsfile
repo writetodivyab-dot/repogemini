@@ -1,5 +1,4 @@
 pipeline {
-    // Explicitly request the 'master' node to avoid the 'any' label issue.
     agent { label 'master' }
 
     parameters {
@@ -9,8 +8,7 @@ pipeline {
     environment {
         GEMINI_API_KEY = credentials('gemini-api-key')
         GITHUB_TOKEN   = credentials('github-token')
-        PYTHON_BIN     = "/opt/venv/bin/python3"  // Using your specific Python path
-        BUILD_LOG_DIR  = "${env.WORKSPACE}/build_logs"
+        PYTHON_BIN     = "/opt/venv/bin/python3"
         REPO_FALLBACK  = "writetodivyab-dot/repogemini"
     }
 
@@ -30,12 +28,14 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    sh "mkdir -p '${BUILD_LOG_DIR}'"
+                    // Create the log directory using a relative path
+                    sh "mkdir -p build_logs"
                     try {
                         echo "\u001B[36mStarting build...\u001B[0m"
+                        // Write to the log file in the relative path
                         sh """
                             set -e
-                            ${PYTHON_BIN} scripts/app.py > '${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt' 2>&1
+                            ${PYTHON_BIN} scripts/app.py > 'build_logs/build_${BUILD_NUMBER}.txt' 2>&1
                         """
                         echo "\u001B[32mBuild succeeded!\u001B[0m"
                     } catch (err) {
@@ -51,11 +51,11 @@ pipeline {
     post {
         always {
             script {
-                // Also use the 'master' node to ensure context is available.
                 node('master') {
                     echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
 
-                    def logFile = "${env.BUILD_LOG_DIR}/build_${env.BUILD_NUMBER}.txt"
+                    // Define the log file using the same relative path
+                    def logFile = "build_logs/build_${env.BUILD_NUMBER}.txt"
                     def prNumber = params.PR_NUMBER ?: null
                     def repoUrl = env.GIT_URL ?: "https://github.com/${env.REPO_FALLBACK}.git"
 
