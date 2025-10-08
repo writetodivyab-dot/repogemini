@@ -2,19 +2,13 @@ import sys
 import os
 import google.generativeai as genai
 
-def analyze_log_with_gemini(log_file_path, output_file_path):
-    # Get API key from environment
+def analyze_log(log_content, output_file_path):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY not set in environment variables.")
 
     genai.configure(api_key=api_key)
 
-    # Read the Jenkins build log
-    with open(log_file_path, "r", encoding="utf-8", errors="ignore") as f:
-        log_content = f.read()
-
-    # Prepare prompt for Gemini
     prompt = f"""
     You are an AI assistant. Analyze the following Jenkins build log and summarize:
     - Errors encountered
@@ -25,7 +19,6 @@ def analyze_log_with_gemini(log_file_path, output_file_path):
     {log_content}
     """
 
-    # Call Gemini API
     response = genai.chat.create(
         model="gemini-1.5",
         messages=[{"role": "user", "content": prompt}]
@@ -33,7 +26,6 @@ def analyze_log_with_gemini(log_file_path, output_file_path):
 
     ai_analysis = response.last.user_message.content
 
-    # Write AI analysis to output file
     with open(output_file_path, "w", encoding="utf-8") as f:
         f.write(ai_analysis)
 
@@ -42,11 +34,19 @@ def analyze_log_with_gemini(log_file_path, output_file_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python analyze_log.py <log_file> <output_file>")
+    # If file is provided, read it; else read from stdin
+    if len(sys.argv) == 2:
+        output_file = sys.argv[1]
+        log_content = sys.stdin.read()
+    elif len(sys.argv) == 3:
+        log_file = sys.argv[1]
+        output_file = sys.argv[2]
+        with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+            log_content = f.read()
+    else:
+        print("Usage:")
+        print("  echo <log> | python analyze_log.py <output_file>")
+        print("  python analyze_log.py <log_file> <output_file>")
         sys.exit(1)
 
-    log_file = sys.argv[1]
-    output_file = sys.argv[2]
-
-    analyze_log_with_gemini(log_file, output_file)
+    analyze_log(log_content, output_file)
