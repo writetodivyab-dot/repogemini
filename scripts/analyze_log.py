@@ -1,52 +1,39 @@
+import google.generativeai as genai
 import sys
 import os
-import google.generativeai as genai
 
-def analyze_log(log_content, output_file_path):
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY not set in environment variables.")
+# Set API key from environment variable
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
-    genai.configure(api_key=api_key)
+log_file = sys.argv[1]
+output_file = sys.argv[2]
 
-    prompt = f"""
-    You are an AI assistant. Analyze the following Jenkins build log and summarize:
-    - Errors encountered
-    - Possible causes
-    - Suggested fixes
+# Read Jenkins console log
+with open(log_file, "r", encoding="utf-8") as f:
+    log_content = f.read()
 
-    Build log:
-    {log_content}
-    """
+# Create AI analysis using Gemini ChatCompletion
+response = genai.ChatCompletion.create(
+    model="gemini-2.5-pro",
+    messages=[
+        {
+            "role": "system",
+            "content": "You are an expert DevOps assistant. Analyze Jenkins build logs and suggest fixes."
+        },
+        {
+            "role": "user",
+            "content": f"Analyze the following Jenkins build log and provide actionable suggestions:\n{log_content}"
+        }
+    ],
+    temperature=0.2,
+    max_output_tokens=500
+)
 
-    response = genai.chat.create(
-        model="gemini-2.5-pro",
-        messages=[{"role": "user", "content": prompt}]
-    )
+# Extract AI-generated text
+analysis_text = response.choices[0].message["content"]
 
-    ai_analysis = response.last.user_message.content
+# Save the AI analysis
+with open(output_file, "w", encoding="utf-8") as f:
+    f.write(analysis_text)
 
-    with open(output_file_path, "w", encoding="utf-8") as f:
-        f.write(ai_analysis)
-
-    print("\033[93m\n=== 🤖 AI Build Log Analysis ===\033[0m\n")
-    print(ai_analysis)
-
-
-if __name__ == "__main__":
-    # If file is provided, read it; else read from stdin
-    if len(sys.argv) == 2:
-        output_file = sys.argv[1]
-        log_content = sys.stdin.read()
-    elif len(sys.argv) == 3:
-        log_file = sys.argv[1]
-        output_file = sys.argv[2]
-        with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
-            log_content = f.read()
-    else:
-        print("Usage:")
-        print("  echo <log> | python analyze_log.py <output_file>")
-        print("  python analyze_log.py <log_file> <output_file>")
-        sys.exit(1)
-
-    analyze_log(log_content, output_file)
+print("AI Analysis complete. Output file:", output_file)
