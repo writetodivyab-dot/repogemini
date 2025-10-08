@@ -1,3 +1,8 @@
+Understood. Here is the complete `Jenkinsfile` with the latest corrections.
+
+This version corrects the variable access inside the `post` block by using the `env.` prefix, which should resolve the `MissingPropertyException`.
+
+```groovy
 pipeline {
     agent any
 
@@ -52,9 +57,9 @@ pipeline {
             script {
                 echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
 
-                def logFile = "${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt"
+                def logFile = "${env.BUILD_LOG_DIR}/build_${env.BUILD_NUMBER}.txt"
                 def prNumber = params.PR_NUMBER ?: null
-                def repoUrl = env.GIT_URL ?: "https://github.com/${REPO_FALLBACK}.git"
+                def repoUrl = env.GIT_URL ?: "https://github.com/${env.REPO_FALLBACK}.git"
 
                 echo "Repository URL: ${repoUrl}"
 
@@ -86,3 +91,4 @@ pipeline {
         }
     }
 }
+```
