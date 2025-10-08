@@ -1,17 +1,16 @@
 pipeline {
     agent any
 
-    // Manual PR parameter
     parameters {
         string(name: 'PR_NUMBER', defaultValue: '', description: 'PR number to post AI analysis to (leave empty for manual build only)')
     }
 
     environment {
-        GEMINI_API_KEY = credentials('gemini-api-key')   // Jenkins credential
-        GITHUB_TOKEN   = credentials('github-token')    // Jenkins GitHub token
-        PYTHON_VENV    = "/opt/venv/bin/python3"        // Path to Python in your Jenkins container
+        GEMINI_API_KEY = credentials('gemini-api-key')
+        GITHUB_TOKEN   = credentials('github-token')
+        PYTHON_BIN     = "/opt/venv/bin/python3"  // Adjust if your Python path is different
         BUILD_LOG_DIR  = "${env.WORKSPACE}/build_logs"
-        REPO_FALLBACK  = "writetodivyab-dot/repogemini"  // Replace with your repo
+        REPO_FALLBACK  = "writetodivyab-dot/repogemini"
     }
 
     options {
@@ -30,14 +29,12 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    // Ensure log folder exists
                     sh "mkdir -p '${BUILD_LOG_DIR}'"
-
                     try {
                         echo "\u001B[36mStarting build...\u001B[0m"
                         sh """
                             set -e
-                            ${PYTHON_VENV} scripts/app.py > '${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt' 2>&1
+                            ${PYTHON_BIN} scripts/app.py > '${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt' 2>&1
                         """
                         echo "\u001B[32mBuild succeeded!\u001B[0m"
                     } catch (err) {
@@ -52,8 +49,8 @@ pipeline {
 
     post {
         always {
-            // Wrap in node to get workspace context
-            node {
+            // Wrap in node to provide workspace context
+            node('any') {
                 script {
                     echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
 
@@ -63,7 +60,7 @@ pipeline {
 
                     echo "Repository URL: ${repoUrl}"
 
-                    // Check if build log exists
+                    // Check if log file exists
                     def logExists = sh(script: "[ -f '${logFile}' ] && echo 'yes' || echo 'no'", returnStdout: true).trim()
 
                     if (logExists == 'yes') {
@@ -72,13 +69,13 @@ pipeline {
                             sh """
                                 GEMINI_API_KEY='${GEMINI_API_KEY}' \
                                 GITHUB_TOKEN='${GITHUB_TOKEN}' \
-                                ${PYTHON_VENV} scripts/analyze_log.py '${logFile}' --pr ${prNumber} --repo ${repoUrl}
+                                ${PYTHON_BIN} scripts/analyze_log.py '${logFile}' --pr ${prNumber} --repo ${repoUrl}
                             """
                         } else {
                             echo "Manual build (no PR), printing AI analysis to console..."
                             sh """
                                 GEMINI_API_KEY='${GEMINI_API_KEY}' \
-                                ${PYTHON_VENV} scripts/analyze_log.py '${logFile}'
+                                ${PYTHON_BIN} scripts/analyze_log.py '${logFile}'
                             """
                         }
                     } else {
