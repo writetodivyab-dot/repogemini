@@ -8,7 +8,7 @@ pipeline {
     environment {
         GEMINI_API_KEY = credentials('gemini-api-key')
         PYTHON_VENV = "/opt/venv/bin/python3"
-        BUILD_LOG_DIR = "${WORKSPACE}/build_logs"
+        BUILD_LOG_DIR = "${env.WORKSPACE}/build_logs"
         REPO_FALLBACK = "writetodivyab-dot/repogemini"
     }
 
@@ -51,8 +51,8 @@ pipeline {
             script {
                 echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
 
-                // Use dir() to ensure workspace context
-                dir("${WORKSPACE}") {
+                // Use dir() to ensure env.WORKSPACE context
+                dir("${env.WORKSPACE}") {
                     def logFile = "${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt"
                     def prNumber = params.PR_NUMBER ?: null
                     def repoUrl = env.GIT_URL ?: "https://github.com/${REPO_FALLBACK}.git"
