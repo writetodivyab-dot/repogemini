@@ -22,6 +22,8 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+				// Add this line for debugging
+				sh 'echo "--- Workspace Contents ---"; ls -la'
             }
         }
 
