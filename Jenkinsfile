@@ -6,9 +6,9 @@ pipeline {
     }
 
     environment {
-		GEMINI_API_KEY = credentials('GEMINI_API_KEY')
-        GITHUB_TOKEN   = credentials('GITHUB_TOKEN')
-        REPO_FALLBACK  = "writetodivyab-dot/repogemini"
+        GEMINI_API_KEY = credentials('gemini-api-key')
+        GITHUB_TOKEN   = credentials('github-token')
+        REPO_FALLBACK  = "your-github-user/your-repo-name" // Remember to update this
     }
 
     options {
@@ -31,7 +31,6 @@ pipeline {
                     sh "mkdir -p build_logs"
                     try {
                         echo "\u001B[36mStarting build...\u001B[0m"
-                        // This is the corrected sh block
                         sh """
                             # Run the python script and redirect all output to the log file.
                             python3 scripts/app.py > 'build_logs/build_${BUILD_NUMBER}.txt' 2>&1
