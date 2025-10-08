@@ -8,7 +8,6 @@ pipeline {
     environment {
         GEMINI_API_KEY = credentials('gemini-api-key')
         GITHUB_TOKEN   = credentials('github-token')
-        PYTHON_BIN     = "/opt/venv/bin/python3"
         REPO_FALLBACK  = "writetodivyab-dot/repogemini"
     }
 
@@ -22,22 +21,20 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-				// Add this line for debugging
-				sh 'echo "--- Workspace Contents ---"; ls -la'
+                sh 'echo "--- Workspace Contents ---"; ls -la'
             }
         }
 
         stage('Build') {
             steps {
                 script {
-                    // Create the log directory using a relative path
                     sh "mkdir -p build_logs"
                     try {
                         echo "\u001B[36mStarting build...\u001B[0m"
-                        // Write to the log file in the relative path
+                        // Use the generic python3 command
                         sh """
                             set -e
-                            ${PYTHON_BIN} scripts/app.py > 'build_logs/build_${BUILD_NUMBER}.txt' 2>&1
+                            python3 scripts/app.py > 'build_logs/build_${BUILD_NUMBER}.txt' 2>&1
                         """
                         echo "\u001B[32mBuild succeeded!\u001B[0m"
                     } catch (err) {
@@ -56,7 +53,6 @@ pipeline {
                 node('master') {
                     echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
 
-                    // Define the log file using the same relative path
                     def logFile = "build_logs/build_${env.BUILD_NUMBER}.txt"
                     def prNumber = params.PR_NUMBER ?: null
                     def repoUrl = env.GIT_URL ?: "https://github.com/${env.REPO_FALLBACK}.git"
@@ -71,13 +67,13 @@ pipeline {
                             sh """
                                 GEMINI_API_KEY='${GEMINI_API_KEY}' \
                                 GITHUB_TOKEN='${GITHUB_TOKEN}' \
-                                ${PYTHON_BIN} scripts/analyze_log.py '${logFile}' --pr ${prNumber} --repo ${repoUrl}
+                                python3 scripts/analyze_log.py '${logFile}' --pr ${prNumber} --repo ${repoUrl}
                             """
                         } else {
                             echo "Manual build (no PR), printing AI analysis to console..."
                             sh """
                                 GEMINI_API_KEY='${GEMINI_API_KEY}' \
-                                ${PYTHON_BIN} scripts/analyze_log.py '${logFile}'
+                                python3 scripts/analyze_log.py '${logFile}'
                             """
                         }
                     } else {
