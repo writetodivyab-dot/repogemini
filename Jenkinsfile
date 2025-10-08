@@ -15,6 +15,7 @@ pipeline {
                 // Use Linux shell commands instead of bat
                 sh '''
                     echo "Building project..."
+					python3 scripts/app.py
                     echo "Running tests..."
                     echo "All steps executed successfully!"
                 '''
