@@ -1,6 +1,6 @@
 pipeline {
     // Explicitly request the 'master' node to avoid the 'any' label issue.
-    agent { label 'Built-In Node' }
+    agent { label 'master' }
 
     parameters {
         string(name: 'PR_NUMBER', defaultValue: '', description: 'PR number to post AI analysis to (leave empty for manual build only)')
@@ -52,7 +52,7 @@ pipeline {
         always {
             script {
                 // Also use the 'master' node to ensure context is available.
-                node('Built-In Node') {
+                node('master') {
                     echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
 
                     def logFile = "${env.BUILD_LOG_DIR}/build_${env.BUILD_NUMBER}.txt"
