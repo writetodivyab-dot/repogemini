@@ -8,7 +8,7 @@ pipeline {
     environment {
         GEMINI_API_KEY = credentials('GEMINI_API_KEY')
         GITHUB_TOKEN   = credentials('GITHUB_TOKEN')
-        REPO_FALLBACK  = "writetodivyab-dot/repogemini"  // Remember to update this
+        REPO_FALLBACK  = "writetodivyab-dot/repogemini" // Remember to update this
     }
 
     options {
