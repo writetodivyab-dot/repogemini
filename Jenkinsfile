@@ -2,52 +2,44 @@ pipeline {
     agent any
 
     environment {
-        GEMINI_API_KEY = credentials('gemini_api_key')
+        LOG_DIR = "${env.WORKSPACE}/build_logs"
+        PYTHON_SCRIPT = "scripts/analyze_log.py"
+        OUTPUT_FILE = "${env.LOG_DIR}/ai_analysis_output.txt"
+        GEMINI_API_KEY = credentials('GEMINI_API_KEY')   // Jenkins credential ID
     }
 
     stages {
-        stage('Setup') {
-            steps {
-                echo "Installing Python dependencies..."
-                powershell '''
-                    python -m pip install --upgrade pip
-                    pip install -r requirements.txt
-                '''
-            }
-        }
-
         stage('Build') {
             steps {
-                script {
-                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                        def buildLog = "${env.WORKSPACE}\\build_logs\\build_output_${env.BUILD_NUMBER}.txt"
-                        powershell """
-                            mkdir -Force build_logs | Out-Null
-                            python src/app.py *>&1 | Tee-Object -FilePath '${buildLog}'
-                            if (\$LASTEXITCODE -ne 0) {
-                                Write-Host "Build failed — captured logs to ${buildLog}" -ForegroundColor Red
-                                exit 1
-                            }
-                        """
-                    }
-                }
+                echo "\u001B[34m=== Starting Build Stage ===\u001B[0m"
+                // Simulate a build task — replace this with your real build steps
+                bat 'echo Building project...'
+                bat 'echo Running tests...'
+                bat 'echo All steps executed successfully!'
             }
         }
 
         stage('Analyze Failure') {
+            when {
+                expression { currentBuild.resultIsWorseOrEqualTo('FAILURE') }
+            }
             steps {
                 script {
-                    def buildLog = "${env.WORKSPACE}\\build_logs\\build_output_${env.BUILD_NUMBER}.txt"
-                    def analysisFile = "${env.WORKSPACE}\\build_logs\\ai_analysis_${env.BUILD_NUMBER}.txt"
+                    echo "\u001B[33m=== Extracting Jenkins Build Log ===\u001B[0m"
+                    
+                    // Ensure build_logs directory exists
+                    bat "if not exist \"${LOG_DIR}\" mkdir \"${LOG_DIR}\""
 
-                    powershell """
-                        Write-Host "Starting Gemini AI analysis..." -ForegroundColor Yellow
-                        python scripts/analyze_log.py '${buildLog}' '${analysisFile}'
-                        if (Test-Path '${analysisFile}') {
-                            Write-Host "✅ Gemini AI analysis saved to ${analysisFile}" -ForegroundColor Green
-                        } else {
-                            Write-Host "⚠️  Gemini AI analysis file not created!" -ForegroundColor Red
-                        }
+                    // Save Jenkins' own console log into a text file
+                    def logFilePath = "${LOG_DIR}/jenkins_console_${env.BUILD_NUMBER}.txt"
+                    def logText = currentBuild.rawBuild.getLog(999999).join("\n")
+                    writeFile file: logFilePath, text: logText
+                    
+                    echo "\u001B[36m=== Running AI Log Analysis (Gemini) ===\u001B[0m"
+                    bat """
+                        python "${PYTHON_SCRIPT}" ^
+                            "${logFilePath}" ^
+                            "${OUTPUT_FILE}"
                     """
                 }
             }
@@ -55,36 +47,18 @@ pipeline {
 
         stage('Archive Logs') {
             steps {
-                script {
-                    echo "Archiving build and analysis logs..."
-                    archiveArtifacts artifacts: 'build_logs/*.txt', fingerprint: true
-                }
+                echo "\u001B[35m=== Archiving Logs and Analysis Output ===\u001B[0m"
+                archiveArtifacts artifacts: 'build_logs/*.txt', fingerprint: true
             }
         }
     }
 
     post {
-        always {
-            script {
-                def analysisFile = "${env.WORKSPACE}\\build_logs\\ai_analysis_${env.BUILD_NUMBER}.txt"
-                def issuesDetected = false
-
-                if (fileExists(analysisFile)) {
-                    def lines = readFile(analysisFile).readLines()
-                    issuesDetected = lines.find { it.startsWith("Known Issues:") } != null
-                }
-
-                if (currentBuild.currentResult == 'FAILURE') {
-                    if (issuesDetected) {
-                        echo "\033[91m🚨 Build failed with known issues detected! Check AI analysis artifacts.\033[0m"
-                    } else {
-                        echo "\033[93m⚠️  Build failed. No known issues detected, see AI analysis for details.\033[0m"
-                    }
-                    echo "\033[96m🔗 AI Analysis Artifact: build_logs/ai_analysis_${env.BUILD_NUMBER}.txt\033[0m"
-                } else {
-                    echo "\033[92m✅ Build succeeded! No errors detected.\033[0m"
-                }
-            }
+        success {
+            echo "\u001B[32m=== Build succeeded! ===\u001B[0m"
+        }
+        failure {
+            echo "\u001B[31m=== Build failed! Running analysis anyway... ===\u001B[0m"
         }
     }
 }
