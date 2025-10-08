@@ -49,42 +49,39 @@ pipeline {
 
     post {
         always {
-            // Wrap in node to provide workspace context
-            node('any') {
-                script {
-                    echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
+            script {
+                echo "\u001B[34m=== Post Build: Analyzing Logs ===\u001B[0m"
 
-                    def logFile = "${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt"
-                    def prNumber = params.PR_NUMBER ?: null
-                    def repoUrl = env.GIT_URL ?: "https://github.com/${REPO_FALLBACK}.git"
+                def logFile = "${BUILD_LOG_DIR}/build_${BUILD_NUMBER}.txt"
+                def prNumber = params.PR_NUMBER ?: null
+                def repoUrl = env.GIT_URL ?: "https://github.com/${REPO_FALLBACK}.git"
 
-                    echo "Repository URL: ${repoUrl}"
+                echo "Repository URL: ${repoUrl}"
 
-                    // Check if log file exists
-                    def logExists = sh(script: "[ -f '${logFile}' ] && echo 'yes' || echo 'no'", returnStdout: true).trim()
+                // Check if log file exists
+                def logExists = sh(script: "[ -f '${logFile}' ] && echo 'yes' || echo 'no'", returnStdout: true).trim()
 
-                    if (logExists == 'yes') {
-                        if (prNumber) {
-                            echo "Posting AI analysis to PR #${prNumber}..."
-                            sh """
-                                GEMINI_API_KEY='${GEMINI_API_KEY}' \
-                                GITHUB_TOKEN='${GITHUB_TOKEN}' \
-                                ${PYTHON_BIN} scripts/analyze_log.py '${logFile}' --pr ${prNumber} --repo ${repoUrl}
-                            """
-                        } else {
-                            echo "Manual build (no PR), printing AI analysis to console..."
-                            sh """
-                                GEMINI_API_KEY='${GEMINI_API_KEY}' \
-                                ${PYTHON_BIN} scripts/analyze_log.py '${logFile}'
-                            """
-                        }
+                if (logExists == 'yes') {
+                    if (prNumber) {
+                        echo "Posting AI analysis to PR #${prNumber}..."
+                        sh """
+                            GEMINI_API_KEY='${GEMINI_API_KEY}' \
+                            GITHUB_TOKEN='${GITHUB_TOKEN}' \
+                            ${PYTHON_BIN} scripts/analyze_log.py '${logFile}' --pr ${prNumber} --repo ${repoUrl}
+                        """
                     } else {
-                        echo "\u001B[33mNo build log found at ${logFile}\u001B[0m"
+                        echo "Manual build (no PR), printing AI analysis to console..."
+                        sh """
+                            GEMINI_API_KEY='${GEMINI_API_KEY}' \
+                            ${PYTHON_BIN} scripts/analyze_log.py '${logFile}'
+                        """
                     }
-
-                    // Archive build logs
-                    archiveArtifacts artifacts: 'build_logs/*.txt', onlyIfSuccessful: false
+                } else {
+                    echo "\u001B[33mNo build log found at ${logFile}\u001B[0m"
                 }
+
+                // Archive build logs
+                archiveArtifacts artifacts: 'build_logs/*.txt', onlyIfSuccessful: false
             }
         }
     }
