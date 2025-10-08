@@ -24,19 +24,19 @@ pipeline {
             echo "\u001B[31m=== Build Failed: Running AI Log Analysis ===\u001B[0m"
 
             script {
-                // Fetch the full Jenkins console log
+                // Fetch full Jenkins console log
                 def logText = currentBuild.rawBuild.getLog(999999).join("\n")
 
-                // Write console log to a temporary file
+                // Write log to temporary file for Python
                 def logFilePath = "${env.WORKSPACE}/jenkins_console_${env.BUILD_NUMBER}.txt"
                 writeFile file: logFilePath, text: logText
 
-                // Run Gemini AI analysis using Python directly from venv
+                // Run AI analysis directly using venv Python
                 sh """
                     ${VENV_PYTHON} ${PYTHON_SCRIPT} "${logFilePath}" "${OUTPUT_FILE}"
                 """
 
-                // Archive AI analysis and console log
+                // Archive both console log and AI analysis
                 archiveArtifacts artifacts: 'ai_analysis_output.txt, jenkins_console_*.txt', fingerprint: true
             }
         }
