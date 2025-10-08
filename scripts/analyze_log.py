@@ -1,38 +1,43 @@
-import google.generativeai as genai
-import sys
 import os
+import sys
+from google import genai
+from google.genai import types
 
-# Set API key from environment variable
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+# Set your API key
+api_key = os.getenv("GEMINI_API_KEY")
+if not api_key:
+    raise ValueError("GEMINI_API_KEY environment variable is not set.")
+
+client = genai.Client(api_key=api_key)
 
 log_file = sys.argv[1]
 output_file = sys.argv[2]
 
-# Read Jenkins console log
+# Read the Jenkins console log
 with open(log_file, "r", encoding="utf-8") as f:
     log_content = f.read()
 
-# Create AI analysis using Gemini ChatCompletion
-response = genai.ChatCompletion.create(
+# Prepare the content for analysis
+contents = [
+    types.Part.from_bytes(
+        data=log_content.encode("utf-8"),
+        mime_type="text/plain",
+    ),
+    "Analyze the following Jenkins build log and provide actionable suggestions:",
+]
+
+# Generate AI analysis
+chat = client.aio.chats.create(
     model="gemini-2.5-pro",
-    messages=[
-        {
-            "role": "system",
-            "content": "You are an expert DevOps assistant. Analyze Jenkins build logs and suggest fixes."
-        },
-        {
-            "role": "user",
-            "content": f"Analyze the following Jenkins build log and provide actionable suggestions:\n{log_content}"
-        }
-    ],
-    temperature=0.2,
-    max_output_tokens=500
+    config=types.GenerateContentConfig(
+        tools=[types.Tool(code_execution=types.ToolCodeExecution)]
+    ),
 )
 
-# Extract AI-generated text
-analysis_text = response.choices[0].message["content"]
+response = await chat.send_message(contents)
 
-# Save the AI analysis
+# Extract and save the analysis
+analysis_text = response.text
 with open(output_file, "w", encoding="utf-8") as f:
     f.write(analysis_text)
 
