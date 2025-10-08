@@ -12,9 +12,29 @@ pipeline {
     }
 
     stages {
-        stage('Test Stage') {
+        stage('Checkout') {
             steps {
-                sh 'echo "Step 2 Succeeded: Environment and credentials are OK."'
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                script {
+                    sh "mkdir -p build_logs"
+                    try {
+                        echo "\u001B[36mStarting build...\u001B[0m"
+                        sh """
+                            set -e
+                            python3 scripts/app.py > 'build_logs/build_${BUILD_NUMBER}.txt' 2>&1
+                        """
+                        echo "\u001B[32mBuild succeeded!\u001B[0m"
+                    } catch (err) {
+                        echo "\u001B[31mBuild failed, marking for analysis...\u001B[0m"
+                        currentBuild.result = 'FAILURE'
+                        throw err
+                    }
+                }
             }
         }
     }
